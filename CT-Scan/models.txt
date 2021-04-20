@@ -1,0 +1,13 @@
+CL24~C5~P2~BN~D1 -> F -> D256 -> D3
+============================
+CL24 -> convolutional layer with 24 filters
+5 -> kernel_size
+P2 -> max pooling
+BN -> batch normalization
+D1 -> 1% dropout
+F -> flatten
+D256 -> dense layer with 256 units
+
+
+=================================================
+CL48~C5~P2~BN~D1 -> CL64~C5~P2~BN~D1 -> CL128~C5~BN~D1 -> F -> D512 -> D512 -> D3

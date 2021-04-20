@@ -1,0 +1,8 @@
+IMAGE PREPROCESSING
+
+1) verificam consistenta imaginilor (acelasi aspect ratio si nr pixeli)
+    - toate imaginile sunt 50x50
+2) analizam datele
+    - vedem cum arata mean si variance pe train/validation/test data
+    - normalizam datele (?)
+    - reducem numarul de bin-uri

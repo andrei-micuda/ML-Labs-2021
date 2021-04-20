@@ -8,7 +8,7 @@ from tensorflow.keras import layers, models, preprocessing
 import matplotlib.pyplot as plt
 
 
-img_height, img_width = 50, 50
+img_height, img_width, img_channels = 50, 50, 1
 
 
 def process_csv_entry(entry):
@@ -36,9 +36,9 @@ def load_data(dir_name, csv_file):
 def preprocess_images(imgs):
     processed_images = np.copy(imgs)
     processed_images = processed_images / 255.0
-    # mean = np.mean(processed_images, axis=(1, 2), keepdims=True)
-    # std = np.std(processed_images, axis=(1, 2), keepdims=True)
-    # processed_images = (processed_images - mean) / std
+    mean = np.mean(processed_images, axis=(1, 2), keepdims=True)
+    std = np.std(processed_images, axis=(1, 2), keepdims=True)
+    processed_images = (processed_images - mean) / std
     return processed_images
 
 
@@ -119,42 +119,57 @@ validation_ds = preprocess_images(validation_ds)
 #     plt.axis("off")
 #     plt.colorbar()
 # plt.show()
+def add_layer(model, layer, is_input_layer, is_output_layer):
+    parts = [part.strip() for part in layer.split("~")]
+    for part in parts:
+        if part.startswith("CL"):
+            part = part[2:]
+            filters, kernel_size = part.split("C")
+            filters = int(filters)
+            kernel_size = int(kernel_size)
+            if is_input_layer:
+                model.add(layers.Conv2D(filters, (kernel_size, kernel_size), activation="relu", input_shape=(img_height, img_width, img_channels)))
+            else:
+                model.add(layers.Conv2D(filters, (kernel_size, kernel_size), activation="relu"))
+        elif part.startswith("P"):
+            pool_size = int(part[1:])
+            model.add(layers.MaxPool2D(pool_size=(pool_size, pool_size)))
+        elif part.startswith("BN"):
+            model.add(layers.BatchNormalization())
+        elif part.startswith("DO"):
+            rate = int(part[2:]) / 100.0
+            model.add(layers.Dropout(rate))
+        elif part.startswith("F"):
+            model.add(layers.Flatten())
+        elif part.startswith("D"):
+            units = int(part[1:])
+            model.add(layers.Dense(units, activation="softmax" if is_output_layer else "relu"))
 
-history = [0] * 9
-for i in range(1):
+
+
+def create_model(pattern):
     model = models.Sequential()
-    model.add(layers.Conv2D(32, (3, 3), activation="relu", input_shape=(50, 50, 1)))
-    model.add(layers.MaxPooling2D((2, 2)))
-    model.add(layers.Conv2D(64, (3, 3), activation="relu"))
-    model.add(layers.MaxPooling2D((2, 2)))
-    model.add(layers.Conv2D(64, (3, 3), activation="relu"))
-    model.add(layers.Flatten())
-    model.add(layers.Dense(64, activation="relu"))
-    model.add(layers.Dense(3))
-
-    # model.add(
-    #     layers.Conv2D(
-    #         24,
-    #         kernel_size=5,
-    #         padding="same",
-    #         activation="relu",
-    #         input_shape=(50, 50, 1),
-    #     )
-    # )
-    # model.add(layers.MaxPool2D())
-    # model.add(layers.Conv2D(48, kernel_size=5, padding="same", activation="relu"))
-    # model.add(layers.MaxPool2D())
-    # model.add(layers.Conv2D(64, kernel_size=5, padding="same", activation="relu"))
-    # model.add(layers.MaxPool2D(padding="same"))
-    # model.add(layers.Flatten())
-    # model.add(layers.Dense(64, activation="relu"))
-    # model.add(layers.Dense(3, activation="softmax"))
-
+    layers = [layer.strip() for layer in pattern.split("->")]
+    num_layers = len(layers)
+    for i, layer in enumerate(layers):
+        add_layer(model, layer, is_input_layer=(i == 0), is_output_layer=(i == num_layers - 1))
     model.compile(
         optimizer="adam",
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=["accuracy"],
     )
+    return model
+
+
+
+model_num = 1
+history = [0] * model_num
+# model_patterns = ["CL48C5~P2~BN~DO1 -> CL64C5~P2~BN~DO1 -> CL128C5~BN~DO1 -> F -> D512 -> D512 -> D3"]
+model_patterns = ["CL12C3~P2 -> F -> D64 -> D3"]
+for i, pattern in enumerate(model_patterns):
+    model = create_model(pattern)
+
+    model.summary
 
     train_images = tf.expand_dims(preprocess_images(train_ds), axis=-1)
     validation_images = tf.expand_dims(preprocess_images(validation_ds), axis=-1)
@@ -162,12 +177,9 @@ for i in range(1):
     history[i] = model.fit(
         train_images,
         train_labels,
-        epochs=20,
+        epochs=3,
         validation_data=(validation_images, validation_labels),
-        batch_size=80,
     )
-
-names = ["11 bins"]
 
 styles = [
     "solid",
@@ -219,12 +231,11 @@ styles = [
 # PLOT ACCURACIES
 plt.figure(figsize=(15, 5))
 for i in range(1):
-    plt.plot(history[i].history["val_accuracy"], linestyle=styles[i])
-    plt.plot(history[i].history["accuracy"], linestyle=styles[i], color="green")
+    plt.plot(history[i].history["val_accuracy"], linestyle=styles[i], color=np.random.rand(3,))
 plt.title("model accuracy")
 plt.ylabel("accuracy")
 plt.xlabel("epoch")
-# plt.legend(names, loc="upper left")
+plt.legend(model_patterns, loc="upper left")
 # axes = plt.gca()
 # axes.set_ylim([0.98, 1])
 plt.show()

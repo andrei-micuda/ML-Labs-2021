@@ -177,11 +177,11 @@ def model_testing(epochs):
         # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D32 -> D16 -> D3",
         # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D32 -> D32 -> D3",
         # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D40 -> F -> D64 -> D16 -> D3",
-        "CL10C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
-        "CL8C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
-        "CL8C5~P2~BN~D20 -> CL8C5~P2~BN~D20 -> F -> D16 -> D3",
-        "CL6C5~P2~BN~D20 -> CL8C5~P2~BN~D20 -> F -> D16 -> D3",
-        "CL6C5~P2~BN~D20 -> CL6C5~P2~BN~D20 -> F -> D16 -> D3",
+        # "CL10C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
+        # "CL8C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
+        # "CL8C5~P2~BN~D20 -> CL8C5~P2~BN~D20 -> F -> D16 -> D3",
+        "CL6C3~P2~BN~D40 -> CL6C3~P2~BN~D40 -> CL6C3~P2~BN~D20 -> F -> D24 -> D3",
+        # "CL6C5~P2~BN~D20 -> CL6C5~P2~BN~D20 -> F -> D16 -> D3",
         # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D64 -> D32 -> D3",
         # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D64 -> D64 -> D3",
     ]
@@ -317,7 +317,7 @@ def data_augmentation_testing(epochs):
     plt.show()
 
 # data_augmentation_testing(20)
-model_testing(50)
+model_testing(70)
 
 
 # history = [

@@ -4,7 +4,7 @@ import PIL
 import PIL.Image
 import tensorflow as tf
 import pathlib
-from tensorflow.keras import layers, models, preprocessing
+from tensorflow.keras import layers, models, preprocessing, callbacks, regularizers
 import matplotlib.pyplot as plt
 
 
@@ -35,7 +35,7 @@ def load_data(dir_name, csv_file):
 
 def preprocess_images(imgs):
     processed_images = np.copy(imgs)
-    processed_images = processed_images / 255.0
+    # processed_images = processed_images / 255.0
     mean = np.mean(processed_images, axis=(1, 2), keepdims=True)
     std = np.std(processed_images, axis=(1, 2), keepdims=True)
     processed_images = (processed_images - mean) / std
@@ -57,13 +57,13 @@ data_dir = pathlib.Path("./dataset/train/*")
 class_names = ["native", "arterial", "venous"]
 
 train_ds, train_labels = load_data(r"./dataset/train", r"./dataset/train.txt")
+train_labels = tf.keras.utils.to_categorical(train_labels)
 train_ds = preprocess_images(train_ds)
 # show_data_sample(train_ds, train_labels)
 
-validation_ds, validation_labels = load_data(
-    r"./dataset/validation", r"./dataset/validation.txt"
-)
+validation_ds, validation_labels = load_data(r"./dataset/validation", r"./dataset/validation.txt")
 validation_ds = preprocess_images(validation_ds)
+validation_labels = tf.keras.utils.to_categorical(validation_labels)
 
 
 # model = models.Sequential()
@@ -119,7 +119,10 @@ validation_ds = preprocess_images(validation_ds)
 #     plt.axis("off")
 #     plt.colorbar()
 # plt.show()
-def add_layer(model, layer, is_input_layer, is_output_layer):
+
+callback = callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
     parts = [part.strip() for part in layer.split("~")]
     for part in parts:
         if part.startswith("CL"):
@@ -128,11 +131,17 @@ def add_layer(model, layer, is_input_layer, is_output_layer):
             filters = int(filters)
             kernel_size = int(kernel_size)
             if is_input_layer:
-                model.add(layers.Conv2D(filters, (kernel_size, kernel_size), activation="relu", input_shape=(img_height, img_width, img_channels)))
+                model.add(layers.Conv2D(
+                    filters,
+                    (kernel_size, kernel_size),
+                    activation="relu",
+                    input_shape=(img_height, img_width, img_channels),
+                    kernel_regularizer=regularizers.l2()))
             else:
-                model.add(layers.Conv2D(filters, (kernel_size, kernel_size), activation="relu"))
+                model.add(layers.Conv2D(filters, (kernel_size, kernel_size), activation="relu", kernel_regularizer=regularizers.l2()))
         elif part.startswith("P"):
             pool_size = int(part[1:])
+            # model.add(layers.AvgPool2D(pool_size=(pool_size, pool_size)))
             model.add(layers.MaxPool2D(pool_size=(pool_size, pool_size)))
         elif part.startswith("BN"):
             model.add(layers.BatchNormalization())
@@ -151,47 +160,165 @@ def create_model(pattern):
     model = models.Sequential()
     layers = [layer.strip() for layer in pattern.split("->")]
     num_layers = len(layers)
+    model.add(tf.keras.layers.experimental.preprocessing.Normalization(input_shape=(50, 50, 1)))
+    model.add(tf.keras.layers.experimental.preprocessing.RandomContrast(factor=0.1))
     for i, layer in enumerate(layers):
-        add_layer(model, layer, is_input_layer=(i == 0), is_output_layer=(i == num_layers - 1))
+        add_layer(model, layer, is_output_layer=(i == num_layers - 1))
     model.compile(
         optimizer="adam",
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
         metrics=["accuracy"],
     )
     return model
 
+def model_testing(epochs):
+    # model_patterns = ["CL48C5~P2~BN~DO1 -> CL64C5~P2~BN~DO1 -> CL128C5~BN~DO1 -> F -> D512 -> D512 -> D3"]
+    model_patterns = [
+        # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D32 -> D16 -> D3",
+        # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D32 -> D32 -> D3",
+        # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D40 -> F -> D64 -> D16 -> D3",
+        "CL10C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
+        "CL8C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
+        "CL8C5~P2~BN~D20 -> CL8C5~P2~BN~D20 -> F -> D16 -> D3",
+        "CL6C5~P2~BN~D20 -> CL8C5~P2~BN~D20 -> F -> D16 -> D3",
+        "CL6C5~P2~BN~D20 -> CL6C5~P2~BN~D20 -> F -> D16 -> D3",
+        # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D64 -> D32 -> D3",
+        # "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D64 -> D64 -> D3",
+    ]
+    model_num = len(model_patterns)
+    history = [0] * model_num
+    for i, pattern in enumerate(model_patterns):
+        model = create_model(pattern)
+
+        # model.summary()
+
+        train_images = tf.expand_dims(preprocess_images(train_ds), axis=-1)
+        datagen = preprocessing.image.ImageDataGenerator(
+            # height_shift_range=[-5, 5],
+            horizontal_flip=True,
+            rotation_range=10,
+            vertical_flip=True,
+            # zoom_range=[0.8, 1.2]
+        )
+        train_images_it = datagen.flow(tf.expand_dims(train_ds, axis=-1), train_labels)
+        validation_images = tf.expand_dims(preprocess_images(validation_ds), axis=-1)
+
+        history[i] = model.fit(
+            train_images_it,
+            epochs=epochs,
+            validation_data=(validation_images, validation_labels),
+            # callbacks=[callback],
+            steps_per_epoch=468
+        )
+
+    styles = [
+        "solid",
+        "dotted",
+        "dashed",
+        "dashdot",
+        "solid",
+        "dotted",
+        "dashed",
+        "dashdot",
+        "solid",
+    ]
+
+    # PLOT ACCURACIES
+    plt.figure(figsize=(15, 5))
+    for i in range(len(model_patterns)):
+        plt.plot(history[i].history["val_accuracy"], linestyle=styles[i], color=np.random.rand(3,))
+    plt.title("Model Architecture")
+    plt.ylabel("accuracy")
+    plt.xlabel("epoch")
+    plt.legend(model_patterns, loc="upper left")
+    # axes = plt.gca()
+    # axes.set_ylim([0.98, 1])
+    plt.show()
 
 
-model_num = 1
-history = [0] * model_num
-# model_patterns = ["CL48C5~P2~BN~DO1 -> CL64C5~P2~BN~DO1 -> CL128C5~BN~DO1 -> F -> D512 -> D512 -> D3"]
-model_patterns = ["CL12C3~P2 -> F -> D64 -> D3"]
-for i, pattern in enumerate(model_patterns):
-    model = create_model(pattern)
+def data_augmentation_testing(epochs):
+    # model_patterns = ["CL48C5~P2~BN~DO1 -> CL64C5~P2~BN~DO1 -> CL128C5~BN~DO1 -> F -> D512 -> D512 -> D3"]
+    # model_pattern = "CL48C5~P2~BN~D20 -> F -> D256 -> D3"
+    model_pattern = "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D128 -> D64 -> D3"
+    # model_pattern = "F -> D64 -> D3"
+    augmentations = 3
+    history = [0] * augmentations
+    for i in range(augmentations):
+        model = create_model(model_pattern)
 
-    model.summary
+        # model.summary()
 
-    train_images = tf.expand_dims(preprocess_images(train_ds), axis=-1)
-    validation_images = tf.expand_dims(preprocess_images(validation_ds), axis=-1)
+        train_images = tf.expand_dims(preprocess_images(train_ds), axis=-1)
+        if i == 0:
+            datagen = preprocessing.image.ImageDataGenerator(
+                # height_shift_range=[-5, 5],
+                # horizontal_flip=True,
+                # rotation_range=10
+                brightness_range=[0.7,1.3]
+            )
+        elif i == 1:
+            datagen = preprocessing.image.ImageDataGenerator(
+                # height_shift_range=[-5, 5],
+                # horizontal_flip=True,
+                # rotation_range=15
+                zoom_range=[0.7,1.3]
+            )
+        elif i == 2:
+            datagen = preprocessing.image.ImageDataGenerator(
+                # height_shift_range=[-5, 5],
+                # horizontal_flip=True,
+                # rotation_range=20
+                vertical_flip=True
+            )
+        elif i == 3:
+            datagen = preprocessing.image.ImageDataGenerator(
+                # height_shift_range=[-5, 5],
+                # horizontal_flip=True,
+                # rotation_range=25
+            )
+        train_images_it = datagen.flow(tf.expand_dims(train_ds, axis=-1), train_labels)
+        validation_images = tf.expand_dims(preprocess_images(validation_ds), axis=-1)
 
-    history[i] = model.fit(
-        train_images,
-        train_labels,
-        epochs=3,
-        validation_data=(validation_images, validation_labels),
-    )
+        history[i] = model.fit(
+            train_images_it,
+            epochs=epochs,
+            validation_data=(validation_images, validation_labels),
+            steps_per_epoch=468
+        )
+    
+    names = [
+        "30% Brightness Shift",
+        "30% Zoom Shift",
+        "Vertical Flip"
+    ]
 
-styles = [
-    "solid",
-    "dotted",
-    "dashed",
-    "dashdot",
-    "solid",
-    "dotted",
-    "dashed",
-    "dashdot",
-    "solid",
-]
+    styles = [
+        "solid",
+        "dotted",
+        "dashed",
+        "dashdot",
+        "solid",
+        "dotted",
+        "dashed",
+        "dashdot",
+        "solid",
+    ]
+
+    # PLOT ACCURACIES
+    plt.figure(figsize=(15, 5))
+    for i in range(augmentations):
+        plt.plot(history[i].history["val_accuracy"], linestyle=styles[i], color=np.random.rand(3,))
+    plt.title("How many filters per layer?")
+    plt.ylabel("accuracy")
+    plt.xlabel("epoch")
+    plt.legend(names, loc="upper left")
+    # axes = plt.gca()
+    # axes.set_ylim([0.98, 1])
+    plt.show()
+
+# data_augmentation_testing(20)
+model_testing(50)
+
 
 # history = [
 #     {
@@ -228,14 +355,3 @@ styles = [
 #         )
 #     )
 
-# PLOT ACCURACIES
-plt.figure(figsize=(15, 5))
-for i in range(1):
-    plt.plot(history[i].history["val_accuracy"], linestyle=styles[i], color=np.random.rand(3,))
-plt.title("model accuracy")
-plt.ylabel("accuracy")
-plt.xlabel("epoch")
-plt.legend(model_patterns, loc="upper left")
-# axes = plt.gca()
-# axes.set_ylim([0.98, 1])
-plt.show()

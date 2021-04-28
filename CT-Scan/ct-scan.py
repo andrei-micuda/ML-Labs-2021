@@ -68,7 +68,9 @@ train_labels = tf.keras.utils.to_categorical(train_labels)
 train_ds = preprocess_images(train_ds)
 # show_data_sample(train_ds, train_labels)
 
-validation_ds, validation_labels = load_data(r"./dataset/validation", r"./dataset/validation.txt")
+validation_ds, validation_labels = load_data(
+    r"./dataset/validation", r"./dataset/validation.txt"
+)
 validation_ds = preprocess_images(validation_ds)
 validation_labels = tf.keras.utils.to_categorical(validation_labels)
 
@@ -129,6 +131,7 @@ validation_labels = tf.keras.utils.to_categorical(validation_labels)
 
 callback = callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
+
 def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
     weight_decay = 1e-4
     parts = [part.strip() for part in layer.split("~")]
@@ -139,12 +142,15 @@ def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
             filters = int(filters)
             kernel_size = int(kernel_size)
             if is_input_layer:
-                model.add(layers.Conv2D(
-                    filters,
-                    (kernel_size, kernel_size),
-                    activation="relu",
-                    input_shape=(img_height, img_width, img_channels),
-                    kernel_regularizer=regularizers.l2()))
+                model.add(
+                    layers.Conv2D(
+                        filters,
+                        (kernel_size, kernel_size),
+                        activation="relu",
+                        input_shape=(img_height, img_width, img_channels),
+                        kernel_regularizer=regularizers.l2(),
+                    )
+                )
             else:
                 model.add(layers.Conv2D(
                     filters,
@@ -165,7 +171,6 @@ def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
         elif part.startswith("D"):
             units = int(part[1:])
             model.add(layers.Dense(units, activation="softmax" if is_output_layer else "relu", kernel_constraint=constraints.MaxNorm(3)))
-
 
 
 def create_model(pattern):
@@ -270,7 +275,7 @@ def model_comparison(epochs):
             epochs=epochs,
             validation_data=(validation_images, validation_labels),
             # callbacks=[callback],
-            steps_per_epoch=468
+            steps_per_epoch=468,
         )
 
     styles = [
@@ -288,7 +293,13 @@ def model_comparison(epochs):
     # PLOT ACCURACIES
     plt.figure(figsize=(15, 5))
     for i in range(len(model_patterns)):
-        plt.plot(history[i].history["val_accuracy"], linestyle=styles[i], color=np.random.rand(3,))
+        plt.plot(
+            history[i].history["val_accuracy"],
+            linestyle=styles[i],
+            color=np.random.rand(
+                3,
+            ),
+        )
     plt.title("Model Architecture")
     plt.ylabel("accuracy")
     plt.xlabel("epoch")
@@ -301,7 +312,7 @@ def model_comparison(epochs):
 def data_augmentation_testing(epochs):
     # model_patterns = ["CL48C5~P2~BN~DO1 -> CL64C5~P2~BN~DO1 -> CL128C5~BN~DO1 -> F -> D512 -> D512 -> D3"]
     # model_pattern = "CL48C5~P2~BN~D20 -> F -> D256 -> D3"
-    model_pattern = "CL12C3~P2~BN~D40 -> CL24C3~P2~BN~D20 -> F -> D128 -> D64 -> D3"
+    model_pattern = "CL24C5~P2~BN~D30 -> CL48C5~P2~BN~D30 -> F -> D512 -> D3"
     # model_pattern = "F -> D64 -> D3"
     augmentations = 3
     history = [0] * augmentations
@@ -316,14 +327,14 @@ def data_augmentation_testing(epochs):
                 # height_shift_range=[-5, 5],
                 # horizontal_flip=True,
                 # rotation_range=10
-                brightness_range=[0.7,1.3]
+                brightness_range=[0.7, 1.3]
             )
         elif i == 1:
             datagen = preprocessing.image.ImageDataGenerator(
                 # height_shift_range=[-5, 5],
                 # horizontal_flip=True,
                 # rotation_range=15
-                zoom_range=[0.7,1.3]
+                zoom_range=[0.7, 1.3]
             )
         elif i == 2:
             datagen = preprocessing.image.ImageDataGenerator(
@@ -338,21 +349,19 @@ def data_augmentation_testing(epochs):
                 # horizontal_flip=True,
                 # rotation_range=25
             )
-        train_images_it = datagen.flow(tf.expand_dims(train_ds, axis=-1), train_labels)
+        train_images_it = datagen.flow(
+            tf.expand_dims(preprocess_images(train_ds), axis=-1), train_labels
+        )
         validation_images = tf.expand_dims(preprocess_images(validation_ds), axis=-1)
 
         history[i] = model.fit(
             train_images_it,
             epochs=epochs,
             validation_data=(validation_images, validation_labels),
-            steps_per_epoch=468
+            steps_per_epoch=468,
         )
-    
-    names = [
-        "30% Brightness Shift",
-        "30% Zoom Shift",
-        "Vertical Flip"
-    ]
+
+    names = ["30% Brightness Shift", "30% Zoom Shift", "Vertical Flip"]
 
     styles = [
         "solid",
@@ -369,7 +378,13 @@ def data_augmentation_testing(epochs):
     # PLOT ACCURACIES
     plt.figure(figsize=(15, 5))
     for i in range(augmentations):
-        plt.plot(history[i].history["val_accuracy"], linestyle=styles[i], color=np.random.rand(3,))
+        plt.plot(
+            history[i].history["val_accuracy"],
+            linestyle=styles[i],
+            color=np.random.rand(
+                3,
+            ),
+        )
     plt.title("How many filters per layer?")
     plt.ylabel("accuracy")
     plt.xlabel("epoch")
@@ -377,6 +392,7 @@ def data_augmentation_testing(epochs):
     # axes = plt.gca()
     # axes.set_ylim([0.98, 1])
     plt.show()
+
 
 # data_augmentation_testing(20)
 model_testing("CL12C7~CL12C7~BN~P2~DO50 -> CL24C5~CL24C5~BN~P2~DO50 -> F -> D120~DO50 -> D64~DO50 -> D3", 50)
@@ -416,4 +432,3 @@ model_testing("CL12C7~CL12C7~BN~P2~DO50 -> CL24C5~CL24C5~BN~P2~DO50 -> F -> D120
 #             max(history[i].history["val_accuracy"]),
 #         )
 #     )
-

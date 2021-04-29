@@ -395,7 +395,7 @@ def data_augmentation_testing(epochs):
 
 
 # data_augmentation_testing(20)
-model_testing("CL12C7~CL12C7~BN~P2~DO50 -> CL24C5~CL24C5~BN~P2~DO50 -> F -> D120~DO50 -> D64~DO50 -> D3", 50)
+model_testing("CL12C7~CL12C7~BN~P2~DO50 -> CL24C5~CL24C5~BN~P2~DO50 -> F -> D120~DO50 -> D64~DO50 -> D3", 100)
 
 
 # history = [

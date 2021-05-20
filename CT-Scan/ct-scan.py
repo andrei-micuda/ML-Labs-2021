@@ -4,7 +4,14 @@ import PIL
 import PIL.Image
 import tensorflow as tf
 import pathlib
-from tensorflow.keras import layers, models, preprocessing, callbacks, regularizers, constraints
+from tensorflow.keras import (
+    layers,
+    models,
+    preprocessing,
+    callbacks,
+    regularizers,
+    constraints,
+)
 import matplotlib.pyplot as plt
 
 
@@ -58,8 +65,6 @@ def show_data_sample(imgs, labels):
         plt.axis("off")
     plt.show()
 
-
-data_dir = pathlib.Path("./dataset/train/*")
 
 class_names = ["native", "arterial", "venous"]
 
@@ -129,7 +134,9 @@ validation_labels = tf.keras.utils.to_categorical(validation_labels)
 #     plt.colorbar()
 # plt.show()
 
-callback = callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+callback = callbacks.EarlyStopping(
+    monitor="val_loss", patience=5, restore_best_weights=True
+)
 
 
 def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
@@ -152,11 +159,14 @@ def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
                     )
                 )
             else:
-                model.add(layers.Conv2D(
-                    filters,
-                    (kernel_size, kernel_size),
-                    activation="relu",
-                    kernel_regularizer=regularizers.l2(weight_decay)))
+                model.add(
+                    layers.Conv2D(
+                        filters,
+                        (kernel_size, kernel_size),
+                        activation="relu",
+                        kernel_regularizer=regularizers.l2(weight_decay),
+                    )
+                )
         elif part.startswith("P"):
             pool_size = int(part[1:])
             # model.add(layers.AvgPool2D(pool_size=(pool_size, pool_size)))
@@ -170,14 +180,24 @@ def add_layer(model, layer, is_input_layer=False, is_output_layer=False):
             model.add(layers.Flatten())
         elif part.startswith("D"):
             units = int(part[1:])
-            model.add(layers.Dense(units, activation="softmax" if is_output_layer else "relu", kernel_constraint=constraints.MaxNorm(3)))
+            model.add(
+                layers.Dense(
+                    units,
+                    activation="softmax" if is_output_layer else "relu",
+                    kernel_constraint=constraints.MaxNorm(3),
+                )
+            )
 
 
 def create_model(pattern):
     model = models.Sequential()
     layers = [layer.strip() for layer in pattern.split("->")]
     num_layers = len(layers)
-    model.add(tf.keras.layers.experimental.preprocessing.Normalization(input_shape=(50, 50, 1)))
+    model.add(
+        tf.keras.layers.experimental.preprocessing.Normalization(
+            input_shape=(50, 50, 1)
+        )
+    )
     # model.add(tf.keras.layers.experimental.preprocessing.RandomContrast(factor=0.1))
     for i, layer in enumerate(layers):
         add_layer(model, layer, is_output_layer=(i == num_layers - 1))
@@ -211,7 +231,7 @@ def model_testing(model_pattern, epochs):
         validation_data=(validation_images, validation_labels),
         # callbacks=[callback],
         # steps_per_epoch=468,
-        shuffle=True
+        shuffle=True,
     )
 
     # PLOT ACCURACIES
@@ -237,7 +257,6 @@ def model_testing(model_pattern, epochs):
     plt.show()
 
 
-
 def model_comparison(epochs):
     # model_patterns = ["CL48C5~P2~BN~DO1 -> CL64C5~P2~BN~DO1 -> CL128C5~BN~DO1 -> F -> D512 -> D512 -> D3"]
     model_patterns = [
@@ -247,7 +266,7 @@ def model_comparison(epochs):
         # "CL10C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
         # "CL8C5~P2~BN~D20 -> CL10C5~P2~BN~D20 -> F -> D16 -> D3",
         # "CL8C5~P2~BN~D20 -> CL8C5~P2~BN~D20 -> F -> D16 -> D3",
-        #"CL6C3~P2~BN~D40 -> CL6C3~P2~BN~D40 -> CL6C3~P2~BN~D20 -> F -> D24 -> D3",
+        # "CL6C3~P2~BN~D40 -> CL6C3~P2~BN~D40 -> CL6C3~P2~BN~D20 -> F -> D24 -> D3",
         # "CL6C5~P2~BN~D20 -> CL6C5~P2~BN~D20 -> F -> D16 -> D3",
         # "CL12C3~BN~P2~DO40 -> CL24C3~BN~P2~DO20 -> F -> D64 -> D32 -> D3",
         # "CL8C5~BN~P2~DO50 -> CL8C5~BN~P2~DO50 -> CL16C3~BN~P2~DO50 -> CL16C3~BN~P2~DO30 -> F -> D64 -> D64 -> D3",
@@ -395,7 +414,10 @@ def data_augmentation_testing(epochs):
 
 
 # data_augmentation_testing(20)
-model_testing("CL12C7~CL12C7~BN~P2~DO50 -> CL24C5~CL24C5~BN~P2~DO50 -> F -> D120~DO50 -> D64~DO50 -> D3", 100)
+model_testing(
+    "CL12C7~CL12C7~BN~P2~DO50 -> CL24C5~CL24C5~BN~P2~DO50 -> F -> D120~DO50 -> D64~DO50 -> D3",
+    50,
+)
 
 
 # history = [
